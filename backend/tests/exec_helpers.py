@@ -80,7 +80,9 @@ class Harness:
 
     async def snapshot(self):  # type: ignore[no-untyped-def]
         async with db.session_scope() as s:
-            return await account_snapshot(s, MODE, initial_capital=CAPITAL, marks=self.marks)
+            return await account_snapshot(
+                s, MODE, initial_capital=CAPITAL, marks=self.marks, rules=RULES
+            )
 
     async def risk_state(self) -> RiskState:
         async with db.session_scope() as s:

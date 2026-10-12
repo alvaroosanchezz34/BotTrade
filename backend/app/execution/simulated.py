@@ -23,6 +23,9 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.domain import InstrumentRules, OrderStatus, OrderType, Quote, Side, utcnow
 from app.core.money import ZERO, floor_to_step
 from app.execution.adapter import (
@@ -90,6 +93,41 @@ class SimulatedExecution:
         self._faults: deque[tuple[Fault, str | None]] = deque()
         self._seq = 0
         self.submit_calls = 0  # para comprobar en tests que no se reenvía dos veces
+
+    async def restore_from_ledger(
+        self, session: AsyncSession, mode: str, initial_capital: Decimal
+    ) -> None:
+        """Reconstruye los saldos del exchange simulado desde el libro de ejecuciones.
+
+        El estado de un exchange simulado es *derivado* del registro persistido: tras un
+        reinicio, caja = capital + fills (con comisiones) y activo base = posiciones abiertas
+        (más la línea base). Las órdenes vivas no se restauran: la reconciliación las descarta.
+        """
+        from app.execution.accounting import account_snapshot
+        from app.persistence import models as m
+
+        snap = await account_snapshot(
+            session, mode, initial_capital=initial_capital, marks={}, rules=self.rules
+        )
+        quotes = {r.quote_asset for r in self.rules.values()}
+        for asset in quotes:
+            self._balances[asset] = snap.cash
+        for rules in self.rules.values():
+            self._balances.setdefault(rules.base_asset, ZERO)
+        base_held: dict[str, Decimal] = {}
+        positions = (
+            await session.execute(
+                select(m.Position).where(m.Position.mode == mode, m.Position.status == "OPEN")
+            )
+        ).scalars()
+        for p in positions:
+            base = self.rules[p.symbol].base_asset
+            base_held[base] = base_held.get(base, ZERO) + p.quantity
+        row = await session.get(m.SystemSetting, f"account:{mode}")
+        baseline = (row.value.get("baseline") if row else None) or {}
+        for rules in self.rules.values():
+            b = rules.base_asset
+            self._balances[b] = Decimal(str(baseline.get(b, 0))) + base_held.get(b, ZERO)
 
     # ------------------------------------------------------------ mercado simulado
 

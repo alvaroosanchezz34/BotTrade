@@ -18,7 +18,9 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.domain import InstrumentRules
 from app.core.money import ZERO
+from app.execution.fees import fee_in_quote
 from app.persistence import models as m
 from app.risk.engine import OpenPositionView, PortfolioView
 
@@ -53,24 +55,32 @@ async def account_snapshot(
     *,
     initial_capital: Decimal,
     marks: Mapping[str, Decimal],
-    stop_loss_fraction: Mapping[str, Decimal] | None = None,
+    rules: Mapping[str, InstrumentRules] | None = None,
 ) -> AccountSnapshot:
     """``marks``: último precio por símbolo. Una posición sin marca se valora a su entrada
     (no se inventa un beneficio) y el llamador debe tratarlo como dato no disponible."""
     fills = (
         await session.execute(
-            select(m.Fill, m.OrderRow.side)
+            select(m.Fill, m.OrderRow.side, m.OrderRow.symbol)
             .join(m.OrderRow, m.OrderRow.id == m.Fill.order_id)
             .where(m.OrderRow.mode == mode)
         )
     ).all()
     cash = initial_capital
     fees = ZERO
-    for fill, side in fills:
+    for fill, side, symbol in fills:
         gross = fill.price * fill.quantity
         cash += -gross if side == "BUY" else gross
-        cash -= fill.fee
-        fees += fill.fee
+        fee = (
+            fee_in_quote(
+                fee=fill.fee, fee_asset=fill.fee_asset, price=fill.price,
+                quantity=fill.quantity, rules=rules[symbol],
+            )
+            if rules is not None and symbol in rules
+            else fill.fee
+        )  # fmt: skip
+        cash -= fee
+        fees += fee
 
     positions = (
         (await session.execute(select(m.Position).where(m.Position.mode == mode))).scalars().all()

@@ -203,10 +203,17 @@ def main(argv: list[str] | None = None) -> int:
     p_res.add_argument("--report", default="../docs/backtesting-results.md")
     p_res.add_argument("--report-dir", default="../reports")
 
+    sub.add_parser("engine", help="Arranca el engine continuo (PAPER o TESTNET según la config)")
+
     args = parser.parse_args(argv)
     settings = get_settings()
     configure_logging(settings.log_level, json_output=False)
 
+    if args.cmd == "engine":
+        from app.services.runner import run_engine
+
+        configure_logging(settings.log_level, json_output=settings.log_json)
+        return asyncio.run(run_engine(settings))
     if args.cmd == "create-admin":
         return asyncio.run(_create_admin(args.username))
     if args.cmd == "download-history":

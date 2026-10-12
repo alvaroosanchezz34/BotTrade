@@ -46,6 +46,7 @@ from app.execution.adapter import (
     OrderRejectedError,
     OrderRequest,
 )
+from app.execution.fees import fee_in_quote, net_base_quantity
 from app.execution.state_machine import can_transition
 from app.monitoring.alerts import raise_alert
 from app.persistence import db
@@ -56,7 +57,14 @@ from app.risk.store import load_risk_state, save_risk_state
 log = logging.getLogger(__name__)
 
 NON_TERMINAL = tuple(s.value for s in OrderStatus if s not in TERMINAL_ORDER_STATUSES)
-EXIT_PURPOSES = ("EXIT_STOP", "EXIT_TARGET", "EXIT_SIGNAL", "EXIT_MANUAL", "EXIT_EMERGENCY")
+EXIT_PURPOSES = (
+    "EXIT_STOP",
+    "EXIT_TARGET",
+    "EXIT_SIGNAL",
+    "EXIT_TIME",
+    "EXIT_MANUAL",
+    "EXIT_EMERGENCY",
+)
 
 
 class OrderNotAllowedError(PermissionError):
@@ -417,7 +425,17 @@ class OrderManager:
             )
             order.filled_qty = total_qty
             order.avg_fill_price = notional / total_qty
-            order.fees += sum((f.fee for f in new_fills), ZERO)
+            rules = self.rules[order.symbol]
+            order.fees += sum(
+                (
+                    fee_in_quote(
+                        fee=f.fee, fee_asset=f.fee_asset, price=f.price, quantity=f.quantity,
+                        rules=rules,
+                    )
+                    for f in new_fills
+                ),
+                ZERO,
+            )  # fmt: skip
             order.fee_asset = new_fills[-1].fee_asset
 
         current = OrderStatus(order.status)
@@ -445,17 +463,36 @@ class OrderManager:
             await self._event(s, order, current, current, {"filled_qty": str(order.filled_qty)})
 
         for f in new_fills:
-            await self._apply_fill_to_position(s, order, f.price, f.quantity, f.fee, f.filled_at)
+            rules = self.rules[order.symbol]
+            await self._apply_fill_to_position(
+                s,
+                order,
+                price=f.price,
+                gross_qty=f.quantity,
+                held_qty=net_base_quantity(
+                    quantity=f.quantity, fee=f.fee, fee_asset=f.fee_asset, rules=rules
+                ),
+                fee_quote=fee_in_quote(
+                    fee=f.fee, fee_asset=f.fee_asset, price=f.price, quantity=f.quantity,
+                    rules=rules,
+                ),
+                at=f.filled_at,
+            )  # fmt: skip
 
     async def _apply_fill_to_position(
         self,
         s: AsyncSession,
         order: m.OrderRow,
+        *,
         price: Decimal,
-        qty: Decimal,
-        fee: Decimal,
+        gross_qty: Decimal,
+        held_qty: Decimal,
+        fee_quote: Decimal,
         at: datetime,
     ) -> None:
+        """``gross_qty``: lo ejecutado. ``held_qty``: lo que realmente queda en cartera
+        (en compras con comisión en la moneda base es algo menos). La posición lleva
+        ``held_qty``; la comisión va en ``fee_quote`` (moneda de cotización)."""
         if order.side == Side.BUY.value:
             pos = await s.get(m.Position, order.position_id) if order.position_id else None
             if pos is None:
@@ -482,14 +519,16 @@ class OrderManager:
                 if state is not None:
                     state.on_entry()
                     await save_risk_state(s, self.mode, state)
-            pos.avg_entry_price = (pos.avg_entry_price * pos.entry_quantity + price * qty) / (
-                pos.entry_quantity + qty
-            )
-            pos.quantity += qty
-            pos.entry_quantity += qty
-            pos.entry_fees += fee
+            total = pos.entry_quantity + held_qty
+            pos.avg_entry_price = (
+                pos.avg_entry_price * pos.entry_quantity + price * held_qty
+            ) / total
+            pos.quantity += held_qty
+            pos.entry_quantity += held_qty
+            pos.entry_fees += fee_quote
             return
 
+        qty = gross_qty
         pos = await s.get(m.Position, order.position_id) if order.position_id else None
         if pos is None:
             raise RuntimeError(f"Venta {order.client_order_id} sin posición asociada")
@@ -511,9 +550,9 @@ class OrderManager:
             else (pos.exit_price * sold_before + price * qty) / (sold_before + qty)
         )
         entry_fee_share = pos.entry_fees * qty / pos.entry_quantity
-        pnl = (price - pos.avg_entry_price) * qty - fee - entry_fee_share
+        pnl = (price - pos.avg_entry_price) * qty - fee_quote - entry_fee_share
         pos.realized_pnl = (pos.realized_pnl or ZERO) + pnl
-        pos.exit_fees += fee
+        pos.exit_fees += fee_quote
         pos.quantity -= qty
         if pos.quantity <= 0:
             pos.status = "CLOSED"
@@ -585,34 +624,40 @@ async def raise_resolved(s: AsyncSession, dedup_key: str) -> None:
     await resolve_alert(s, dedup_key)
 
 
+async def record_signal(s: AsyncSession, mode: str, signal: Signal, status: str) -> None:
+    """Persiste una señal (idempotente). Todas las señales se guardan, también las rechazadas."""
+    if await s.get(m.SignalRow, signal.id) is not None:
+        return
+    s.add(
+        m.SignalRow(
+            id=signal.id,
+            mode=mode,
+            symbol=signal.symbol,
+            strategy_id=signal.strategy_id,
+            strategy_version=signal.strategy_version,
+            action=signal.action.value,
+            created_at=signal.created_at,
+            valid_until=signal.valid_until,
+            reference_price=signal.reference_price,
+            stop_price=signal.stop_price,
+            target_price=signal.target_price,
+            score=signal.score,
+            score_is_calibrated=signal.score_is_calibrated,
+            rationale=signal.rationale,
+            entry_conditions=signal.entry_conditions,
+            invalidation=signal.invalidation,
+            params=signal.params,
+            status=status,
+        )
+    )
+    await s.flush()
+
+
 async def record_signal_and_decision(
     s: AsyncSession, mode: str, signal: Signal, decision: RiskDecision
 ) -> None:
-    """Persiste señal y decisión (idempotente). Se llama también para las rechazadas."""
-    if await s.get(m.SignalRow, signal.id) is None:
-        s.add(
-            m.SignalRow(
-                id=signal.id,
-                mode=mode,
-                symbol=signal.symbol,
-                strategy_id=signal.strategy_id,
-                strategy_version=signal.strategy_version,
-                action=signal.action.value,
-                created_at=signal.created_at,
-                valid_until=signal.valid_until,
-                reference_price=signal.reference_price,
-                stop_price=signal.stop_price,
-                target_price=signal.target_price,
-                score=signal.score,
-                score_is_calibrated=signal.score_is_calibrated,
-                rationale=signal.rationale,
-                entry_conditions=signal.entry_conditions,
-                invalidation=signal.invalidation,
-                params=signal.params,
-                status="APPROVED" if decision.approved else "REJECTED",
-            )
-        )
-        await s.flush()
+    """Persiste señal y decisión de riesgo (idempotente)."""
+    await record_signal(s, mode, signal, "APPROVED" if decision.approved else "REJECTED")
     if await s.get(m.RiskDecisionRow, decision.id) is None:
         s.add(
             m.RiskDecisionRow(
