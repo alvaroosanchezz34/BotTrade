@@ -52,13 +52,14 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "DTZ", "RUF", "ASYNC"]
-ignore = ["S101", "RUF001", "RUF002", "RUF003"]
+# E501: el formateador ya ajusta el código a 100; los literales largos se dejan legibles.
+ignore = ["S101", "RUF001", "RUF002", "RUF003", "E501", "UP046"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106", "S311", "E501"]
+"tests/**" = ["S105", "S106", "S311", "ASYNC109", "ASYNC110"]
 "migrations/**" = ["E501"]
 
 [tool.mypy]

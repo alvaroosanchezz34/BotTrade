@@ -15,13 +15,18 @@ ONE = Decimal(1)
 
 
 def D(value: Decimal | str | int | float) -> Decimal:
-    """Convierte a Decimal pasando los floats por su representación ``repr`` corta."""
+    """Convierte a Decimal pasando los floats por su representación ``repr`` corta.
+
+    Acepta escalares de NumPy (``np.float64``, ``np.int64``...).
+    """
     if isinstance(value, Decimal):
         return value
+    if not isinstance(value, str | int | float) and hasattr(value, "item"):
+        value = value.item()
     if isinstance(value, float):
         if value != value or value in (float("inf"), float("-inf")):
             raise ValueError(f"Valor numérico no finito: {value}")
-        return Decimal(repr(value))
+        return Decimal(float.__repr__(value))
     return Decimal(value)
 
 

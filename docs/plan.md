@@ -22,10 +22,12 @@ limitaciones y comandos de verificación (en `STATUS.md`).
    `*.binance.vision` para datos; servidor simulado para tests del adaptador de
    testnet; verificación real desde el VPS.
 2. **Costes vs. capital.** Con 0,10 % por lado, una operación ida/vuelta cuesta
-   0,20 % del nocional. Con riesgo de 1,25 USDT y stop al 0,5 %, el nocional es
-   ~250 USDT y el coste ~0,50 USDT: **el 40 % del riesgo presupuestado se va en
-   comisiones**. El scalping en 1m tiene que superar ese listón antes de ganar
-   nada. Se cuantifica en `docs/backtesting.md`.
+   0,20 % del nocional más spread y deslizamiento (~0,03 %). Con riesgo de
+   1,25 USDT y stop al 0,5 %, el sizing que incluye costes da un nocional de
+   ~171 USDT y comisiones de ~0,34 USDT: **~28 % del riesgo presupuestado se va
+   en comisiones** (corregido el 2026-10-12: la estimación inicial del 40 %
+   ignoraba que el sizing ya descuenta los costes). Cuanto más corto el stop,
+   peor la proporción. Se cuantifica en `docs/backtesting.md`.
 3. **Testnet poco representativo.** Precios y liquidez distintos de producción;
    resets mensuales.
 4. **Ambigüedad intra-vela** con datos de 1m (ADR-005).

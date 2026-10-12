@@ -11,6 +11,11 @@ from app.core.money import D, bps, floor_to_step, round_to_tick
 def test_D_avoids_binary_float_error() -> None:
     assert D(0.1) == Decimal("0.1")
     assert D("82444.01") == Decimal("82444.01")
+    import numpy as np
+
+    assert D(np.float64(100.25)) == Decimal("100.25")
+    assert D(np.float32(0.5)) == Decimal("0.5")
+    assert D(np.int64(7)) == Decimal(7)
     with pytest.raises(ValueError):
         D(float("nan"))
 

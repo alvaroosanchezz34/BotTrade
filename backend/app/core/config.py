@@ -90,6 +90,7 @@ class Settings(BaseSettings):
     market_data_rest_url: str = "https://data-api.binance.vision"
     market_data_ws_url: str = "wss://data-stream.binance.vision"
     market_data_archive_url: str = "https://data.binance.vision"
+    data_dir: str = "data"
     stale_data_seconds: int = Field(default=150, ge=10, le=3600)
 
     # --- Testnet (solo se usa en modo TESTNET) -----------------------------
