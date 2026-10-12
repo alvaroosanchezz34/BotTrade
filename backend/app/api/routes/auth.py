@@ -9,6 +9,7 @@ from app.api.deps import CSRF_COOKIE, DB, SESSION_COOKIE, Auth, SettingsDep, req
 from app.api.ratelimit import client_ip, limit, login_limiter
 from app.audit.log import audit
 from app.auth.service import AuthError, login, revoke_session
+from app.core.domain import utcnow
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -66,3 +67,69 @@ async def do_logout(
 @router.get("/me", response_model=MeOut)
 async def me(auth: Auth) -> MeOut:
     return MeOut(username=auth.user.username, role=auth.user.role)
+
+
+class ChangePasswordIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=12, max_length=256)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePasswordIn,
+    request: Request,
+    db: DB,
+    auth: Annotated[Auth, Depends(require_csrf)],
+    _: Annotated[None, Depends(limit(login_limiter, "change-password"))],
+) -> None:
+    """Cambia la contraseña y cierra todas las demás sesiones."""
+    from sqlalchemy import update
+
+    from app.auth.security import hash_password, verify_password
+    from app.persistence.models import Session as SessionRow
+
+    if not verify_password(auth.user.password_hash, body.current_password):
+        await audit(
+            db, actor=auth.actor, action="auth.change_password_failed", ip=client_ip(request)
+        )
+        await db.commit()
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Contraseña actual incorrecta")
+    auth.user.password_hash = hash_password(body.new_password)
+    await db.execute(
+        update(SessionRow)
+        .where(
+            SessionRow.user_id == auth.user.id,
+            SessionRow.revoked_at.is_(None),
+            SessionRow.id != auth.session.id,
+        )
+        .values(revoked_at=utcnow())
+    )
+    await audit(db, actor=auth.actor, action="auth.change_password", ip=client_ip(request))
+
+
+@router.get("/sessions")
+async def my_sessions(auth: Auth, db: DB) -> dict[str, object]:
+    from sqlalchemy import select
+
+    from app.persistence.models import Session as SessionRow
+
+    rows = (
+        await db.execute(
+            select(SessionRow)
+            .where(
+                SessionRow.user_id == auth.user.id,
+                SessionRow.revoked_at.is_(None),
+                SessionRow.expires_at > utcnow(),
+            )
+            .order_by(SessionRow.created_at.desc())
+        )
+    ).scalars()
+    return {
+        "sessions": [
+            {"id": str(s.id), "created_at": s.created_at, "last_seen_at": s.last_seen_at,
+             "expires_at": s.expires_at, "ip": s.ip, "user_agent": s.user_agent,
+             "current": s.id == auth.session.id}
+            for s in rows
+        ]
+    }  # fmt: skip

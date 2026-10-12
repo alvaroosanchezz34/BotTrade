@@ -28,7 +28,7 @@ import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Protocol, cast
 
@@ -59,6 +59,8 @@ from app.strategies.base import Strategy
 from app.strategies.registry import STRATEGIES, build
 
 log = logging.getLogger(__name__)
+
+COMMAND_TTL = timedelta(minutes=10)
 
 StrategyBuilder = Callable[[str, dict[str, Any] | None], Strategy[Any]]
 
@@ -521,6 +523,13 @@ class Engine:
 
     async def _apply_command(self, cmd: m.BotCommand) -> tuple[bool, str]:
         mode, actor = self.config.mode, cmd.created_by
+        # Las órdenes que aflojan restricciones caducan: una reanudación pedida mientras el
+        # engine estaba caído no debe ejecutarse por sorpresa minutos u horas después.
+        # Pausa y kill switch (que endurecen) se aplican siempre, por antiguas que sean.
+        if cmd.command in ("RESUME", "ENABLE_STRATEGY") and (
+            utcnow() - cmd.created_at > COMMAND_TTL
+        ):
+            return False, "solicitud caducada (más de 10 min sin procesar): repítela"
         if cmd.command == "PAUSE":
             r = await pause_entries(mode, actor)
             return r.ok, r.message

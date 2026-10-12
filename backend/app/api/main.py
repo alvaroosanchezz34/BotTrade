@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, health
+from app.api.routes import auth, control, dashboard, health, ops, strategies, trading, ws
 from app.core.config import Environment, Settings, get_settings
 from app.core.logging import configure_logging
 from app.persistence import db
@@ -48,6 +48,7 @@ def create_app(settings: Settings | None = None, *, manage_db: bool = True) -> F
         openapi_url=None if is_prod else "/openapi.json",
     )
     app.dependency_overrides[get_settings] = lambda: settings
+    app.state.settings = settings
 
     app.add_middleware(
         CORSMiddleware,
@@ -78,6 +79,8 @@ def create_app(settings: Settings | None = None, *, manage_db: bool = True) -> F
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    for r in (dashboard, trading, strategies, ops, control, ws):
+        app.include_router(r.router)
     return app
 
 

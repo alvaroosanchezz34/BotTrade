@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from app.core.domain import InstrumentRules, RiskDecision, Signal, SignalAction
-from app.execution.accounting import account_snapshot
+from app.execution.accounting import account_snapshot, get_initial_capital
 from app.execution.order_manager import OrderManager
 from app.execution.simulated import SimulatedExecution
 from app.persistence import db
@@ -71,6 +71,7 @@ class Harness:
         manager = OrderManager(mode=MODE, adapter=adapter, rules=RULES, risk_engine=engine)
         h = cls(adapter, manager, engine, {"BTCUSDT": Decimal("80000"), "ETHUSDT": Decimal("3000")})
         async with db.session_scope() as s:
+            await get_initial_capital(s, MODE, CAPITAL)  # cuenta, como hace el engine al arrancar
             await load_or_create_risk_state(s, MODE, CAPITAL)
         return h
 
