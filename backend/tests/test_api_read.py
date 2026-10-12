@@ -188,7 +188,7 @@ async def test_performance_is_net_excludes_open_and_warns_on_small_sample(
     assert d["overall"]["win_rate"] == 0.0
     assert Decimal(d["overall"]["profit_factor"]) == 0  # solo pérdidas ⇒ PF 0, no None
     assert Decimal(d["overall"]["net_pnl"]) < 0
-    assert "1 operaciones cerradas" in d["sample_warning"]
+    assert "1 operación cerrada" in d["sample_warning"]
     assert set(d["by_strategy"]) == {"test-strategy"}
 
 

@@ -322,7 +322,7 @@ async def performance(_: Auth, db: DB, settings: SettingsDep) -> dict[str, Any]:
         "sample_warning": (
             None
             if n >= 300
-            else f"{n} operaciones cerradas: muestra insuficiente para conclusiones (objetivo ≥ 300)."
+            else f"{n} {'operación cerrada' if n == 1 else 'operaciones cerradas'}: muestra insuficiente para conclusiones (objetivo ≥ 300)."
         ),
         "notes": "Neto de comisiones; excluye posiciones abiertas; sin extrapolaciones.",
     }

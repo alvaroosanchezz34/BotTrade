@@ -1,0 +1,6 @@
+node_modules/
+dist/
+e2e/.results/
+e2e/screenshots/
+playwright-report/
+*.tsbuildinfo
