@@ -36,6 +36,18 @@ async def _create_admin(username: str) -> int:
     return 0
 
 
+async def _check_engine(settings: Any) -> int:
+    from app.monitoring.health import check_engine
+
+    db.init_engine(settings.database_url.get_secret_value())
+    try:
+        h = await check_engine()
+    finally:
+        await db.dispose_engine()
+    print(h.detail)
+    return 0 if h.status == "ok" else 1
+
+
 def _parse_date(value: str) -> datetime:
     return datetime.fromisoformat(value).replace(tzinfo=UTC)
 
@@ -203,12 +215,17 @@ def main(argv: list[str] | None = None) -> int:
     p_res.add_argument("--report", default="../docs/backtesting-results.md")
     p_res.add_argument("--report-dir", default="../reports")
 
+    sub.add_parser(
+        "check-engine", help="Sale con 0 si el engine tiene latido reciente (healthcheck)"
+    )
     sub.add_parser("engine", help="Arranca el engine continuo (PAPER o TESTNET según la config)")
 
     args = parser.parse_args(argv)
     settings = get_settings()
     configure_logging(settings.log_level, json_output=False)
 
+    if args.cmd == "check-engine":
+        return asyncio.run(_check_engine(settings))
     if args.cmd == "engine":
         from app.services.runner import run_engine
 

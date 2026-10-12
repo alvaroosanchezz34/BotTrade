@@ -1,8 +1,7 @@
 # Arquitectura de BotTrade
 
-> Estado: Fase 0 completada el 2026-10-12. Este documento describe la arquitectura
-> **objetivo** y marca qué partes están implementadas. Ver `STATUS.md` para el
-> estado exacto de cada fase.
+> Describe la arquitectura implementada (Fases 0–7). Ver `STATUS.md` para el estado exacto
+> y las limitaciones. El código del engine está en `app/services/`, la ejecución en `app/execution/`.
 
 ## 1. Principios
 

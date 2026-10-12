@@ -1,0 +1,39 @@
+# Caddy obtiene y renueva el certificado HTTPS solo.
+#   SITE_ADDRESS=bot.tudominio.com            → Let's Encrypt (acceso público con HTTPS)
+#   SITE_ADDRESS=maquina.tu-tailnet.ts.net    → certificado de Tailscale (recomendado: sin puertos públicos)
+{
+	# Sin telemetría ni páginas de administración expuestas.
+	admin off
+}
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' wss://{$SITE_ADDRESS}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+		-Server
+	}
+
+	# API, WebSocket y health: al backend (red interna de Docker, sin puerto publicado).
+	@backend path /api/* /ws /health*
+	reverse_proxy @backend api:8000 {
+		header_up X-Forwarded-For {remote_host}
+		health_uri /health
+		health_interval 15s
+	}
+
+	# Aplicación estática. El service worker y el manifest nunca se cachean agresivamente.
+	@sw path /sw.js /manifest.webmanifest /offline.html
+	header @sw Cache-Control "no-cache"
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	root * /srv
+	try_files {path} /index.html
+	file_server
+}

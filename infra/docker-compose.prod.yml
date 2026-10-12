@@ -1,0 +1,116 @@
+# Producción (VPS). Uso:  docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d --build
+#
+# Solo el servicio «web» publica puertos. PostgreSQL y el API NO son accesibles desde fuera.
+# El modo de operación es PAPER o TESTNET: no existe modo de dinero real (ADR-006).
+name: bottrade
+
+x-backend: &backend
+  build:
+    context: ..
+    dockerfile: infra/docker/backend.Dockerfile
+  env_file: .env.prod
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bottrade
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD (16+ caracteres aleatorios)}
+      POSTGRES_DB: bottrade
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # SIN «ports»: solo accesible desde la red interna de Compose.
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bottrade -d bottrade"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [internal]
+
+  api:
+    <<: *backend
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [internal]
+    expose: ["8000"]
+
+  engine:
+    <<: *backend
+    command: ["python", "-m", "app.cli", "engine"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [internal, egress]
+    # Latido en BD: si el engine se cuelga sin morir, Docker lo marca unhealthy.
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.cli", "check-engine"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
+    stop_grace_period: 30s
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/docker/web.Dockerfile
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Define SITE_ADDRESS (dominio o nombre de Tailscale)}
+    ports:
+      # WEB_BIND=100.x.y.z (IP de Tailscale) deja el panel inaccesible desde Internet.
+      - "${WEB_BIND:-127.0.0.1}:443:443"
+      - "${WEB_BIND:-127.0.0.1}:80:80"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+    networks: [internal, egress]
+    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+
+  # Copia diaria con retención. Perfil opcional: --profile backup
+  backup:
+    image: postgres:16-alpine
+    profiles: [backup]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ../backups:/backups
+      - ./scripts/backup-loop.sh:/backup-loop.sh:ro
+    entrypoint: ["sh", "/backup-loop.sh"]
+    networks: [internal]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+
+networks:
+  internal:
+    internal: true   # sin salida a Internet: api y db no pueden llamar fuera
+  egress: {}         # engine (datos de Binance) y web (Let's Encrypt)
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

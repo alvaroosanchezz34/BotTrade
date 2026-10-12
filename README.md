@@ -29,6 +29,15 @@ make admin USER=koke                  # crea el usuario administrador
 make api                              # http://127.0.0.1:8000/docs
 ```
 
+## Frontend (PWA)
+
+```bash
+cd frontend && npm ci
+npm run dev                    # http://127.0.0.1:5173 (proxy de /api y /ws al backend en :8000)
+npm test && npm run build      # unidad + tsc + build de producción
+npm run test:e2e               # Playwright: levanta API + engine reales con una BD de fixtures (bottrade_e2e)
+```
+
 ## Tests
 
 Los tests usan una base de datos PostgreSQL real (`bottrade_test`), que se
@@ -50,4 +59,12 @@ defecto (`cd backend && .venv/bin/pytest -m network`).
 | `docs/architecture.md` | Procesos, pipeline, contratos, modos |
 | `docs/decisions.md` | Decisiones de arquitectura (ADR) |
 | `docs/plan.md` | Fases, criterios de aceptación y riesgos |
+| `docs/risk-policy.md` | Límites, tamaño de posición, pausa/kill switch/reanudar |
+| `docs/strategies.md` · `docs/backtesting.md` | Estrategias y protocolo de validación |
+| `docs/api.md` | Contratos REST/WebSocket |
+| `docs/security.md` | Modelo de seguridad, acceso desde iPhone sin abrir puertos, rotación |
+| `docs/deployment.md` · `docs/operations.md` | VPS, backups, actualizaciones, alertas, TESTNET |
+| `docs/testing.md` | Qué se prueba y cómo probar en iPhone/Chrome |
+| `docs/capital-and-costs.md` | Costes frente a 500 USDT (hipotético, no predicción) |
+| `docs/validation-report.md` | Informe de validación (**sin resultados todavía**) |
 | `STATUS.md` | Estado actual y siguiente paso |
