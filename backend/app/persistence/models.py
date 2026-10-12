@@ -305,7 +305,8 @@ class Position(Base):
     strategy_id: Mapped[str] = mapped_column(String(64))
     signal_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("signals.id"))
     status: Mapped[str] = mapped_column(String(8))  # OPEN / CLOSED
-    quantity: Mapped[Decimal]
+    quantity: Mapped[Decimal]  # cantidad abierta actual (baja con las salidas parciales)
+    entry_quantity: Mapped[Decimal] = mapped_column(default=Decimal(0))  # total comprado
     avg_entry_price: Mapped[Decimal]
     stop_price: Mapped[Decimal | None]
     target_price: Mapped[Decimal | None]
@@ -353,6 +354,8 @@ class RiskState(Base):
     paused: Mapped[bool] = mapped_column(default=False)
     kill_switch_active: Mapped[bool] = mapped_column(default=False)
     entries_blocked: Mapped[bool] = mapped_column(default=False)
+    execution_errors: Mapped[int] = mapped_column(default=0)
+    cooldown_until_day: Mapped[date | None] = mapped_column(Date)
     block_reasons: Mapped[list[Any]] = mapped_column(default=list)
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
     version: Mapped[int] = mapped_column(default=0)
