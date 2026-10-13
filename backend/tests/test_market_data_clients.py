@@ -180,3 +180,45 @@ async def test_archive_checksum_verified_and_cached(tmp_path: Path) -> None:
     candles = parse_archive(data, "BTCUSDT", "1m")
     assert [c.open_time for c in candles] == [c.open_time for c in series(T0, 3)]
     assert candles[0].close_time.microsecond == 999999
+
+
+async def test_archive_retries_dropped_connections_but_never_skips_checksum(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    import hashlib
+
+    import httpx
+
+    from app.providers.binance.archive import (
+        ArchiveFile,
+        BinanceArchiveClient,
+        ChecksumMismatchError,
+    )
+
+    payload = b"zipbytes"
+    good = hashlib.sha256(payload).hexdigest()
+    f = ArchiveFile("BTCUSDT", "5m", "monthly", "2026-01")
+    calls = {"n": 0}
+
+    def make(checksum: str):  # type: ignore[no-untyped-def]
+        calls["n"] = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            if calls["n"] <= 2:
+                raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
+            if request.url.path.endswith(".CHECKSUM"):
+                return httpx.Response(200, text=f"{checksum}  file.zip")
+            return httpx.Response(200, content=payload)
+
+        client = httpx.AsyncClient(base_url="https://x", transport=httpx.MockTransport(handler))
+
+        async def no_sleep(_: float) -> None: ...
+
+        return BinanceArchiveClient("https://x", tmp_path, client=client, sleep=no_sleep)
+
+    data, digest = await make(good).fetch(f)
+    assert data == payload and digest == good and calls["n"] >= 4  # 2 cortes reintentados
+
+    with pytest.raises(
+        ChecksumMismatchError
+    ):  # tras reintentar, un hash distinto sigue siendo fatal
+        await make("0" * 64).fetch(ArchiveFile("BTCUSDT", "5m", "monthly", "2026-02"))

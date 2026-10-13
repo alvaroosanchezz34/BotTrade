@@ -6,11 +6,13 @@ descarta: no se usan datos históricos no verificables (sección 10).
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import hashlib
 import io
 import logging
 import zipfile
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -66,11 +68,44 @@ def plan_files(
 
 class BinanceArchiveClient:
     def __init__(
-        self, base_url: str, cache_dir: Path, *, client: httpx.AsyncClient | None = None
+        self,
+        base_url: str,
+        cache_dir: Path,
+        *,
+        client: httpx.AsyncClient | None = None,
+        max_retries: int = 5,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._client = client or httpx.AsyncClient(base_url=base_url, timeout=60.0)
         self._owns = client is None
         self.cache_dir = cache_dir
+        self.max_retries = max_retries
+        self._sleep = sleep
+
+    async def _get(self, path: str) -> httpx.Response:
+        """GET idempotente con reintentos ante cortes de red y 5XX (backoff exponencial).
+
+        Un 4XX (p. ej. 404: el fichero aún no existe) no se reintenta. Los checksums
+        siguen siendo la defensa frente a datos corruptos: no se relajan.
+        """
+        for attempt in range(self.max_retries + 1):
+            try:
+                resp = await self._client.get(path)
+            except httpx.TransportError as exc:
+                if attempt == self.max_retries:
+                    raise
+                log.warning(
+                    "descarga fallida, reintentando",
+                    extra={"path": path, "error": type(exc).__name__},
+                )
+            else:
+                if resp.status_code < 500 or attempt == self.max_retries:
+                    return resp
+                log.warning(
+                    "error 5XX, reintentando", extra={"path": path, "status": resp.status_code}
+                )
+            await self._sleep(min(30.0, 1.0 * 2**attempt))
+        raise AssertionError("inalcanzable")  # pragma: no cover
 
     async def aclose(self) -> None:
         if self._owns:
@@ -85,7 +120,7 @@ class BinanceArchiveClient:
             if hashlib.sha256(data).hexdigest() == expected:
                 return data, expected
             log.warning("caché corrupta, se vuelve a descargar", extra={"file": f.name})
-        resp = await self._client.get(f.path)
+        resp = await self._get(f.path)
         resp.raise_for_status()
         data = resp.content
         actual = hashlib.sha256(data).hexdigest()
@@ -96,7 +131,7 @@ class BinanceArchiveClient:
         return data, actual
 
     async def _expected_checksum(self, f: ArchiveFile) -> str:
-        resp = await self._client.get(f.path + ".CHECKSUM")
+        resp = await self._get(f.path + ".CHECKSUM")
         resp.raise_for_status()
         return resp.text.split()[0].strip().lower()
 
