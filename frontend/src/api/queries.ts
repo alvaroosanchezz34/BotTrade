@@ -4,6 +4,8 @@ import { loadOverview, saveOverview } from "../services/snapshot";
 import { api, withQuery } from "./client";
 import type {
   Alert,
+  BacktestDetail,
+  BacktestListItem,
   Candles,
   Command,
   CommandAccepted,
@@ -200,4 +202,18 @@ export function sendControl(req: ControlRequest): Promise<CommandAccepted> {
         body: {},
       });
   }
+}
+
+export function useBacktests() {
+  return useQuery({
+    queryKey: ["backtests"],
+    queryFn: () => api<Page<BacktestListItem>>("/api/backtests?limit=50"),
+  });
+}
+
+export function useBacktest(id: string) {
+  return useQuery({
+    queryKey: ["backtests", id],
+    queryFn: () => api<BacktestDetail>(`/api/backtests/${id}`),
+  });
 }

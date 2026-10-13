@@ -66,5 +66,7 @@ defecto (`cd backend && .venv/bin/pytest -m network`).
 | `docs/deployment.md` · `docs/operations.md` | VPS, backups, actualizaciones, alertas, TESTNET |
 | `docs/testing.md` | Qué se prueba y cómo probar en iPhone/Chrome |
 | `docs/capital-and-costs.md` | Costes frente a 500 USDT (hipotético, no predicción) |
+| `docs/simulacion-desde-el-movil.md` | Simulación con dinero ficticio y cómo verla desde el iPhone (paso a paso) |
+| `docs/producto.md` | Notas para convertirlo en producto público (regulación, carencias técnicas) |
 | `docs/validation-report.md` | Informe de validación (**sin resultados todavía**) |
 | `STATUS.md` | Estado actual y siguiente paso |

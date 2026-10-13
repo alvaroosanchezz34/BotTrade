@@ -149,6 +149,25 @@ test.describe("panel (administrador)", () => {
     await expectNoHorizontalScroll(page);
   });
 
+  test("simulación histórica: resultado final con dinero ficticio, curva y veredicto", async ({ page }, info) => {
+    await page.goto("/estrategias");
+    const card = page.getByRole("heading", { name: /Simulaciones históricas/ });
+    await expect(card).toBeVisible();
+    // 500 + 12,5 − 3 − 8,25 + 4 − 1,5 − 6 = 497,75
+    await expect(page.getByText(/500 → 497,75/)).toBeVisible();
+    await shot(page, "simulaciones-lista", info.project.name);
+    await page.getByRole("link", { name: /momentum · 1m/ }).click();
+    await expect(page.getByText(/Simulación histórica con dinero ficticio/).first()).toBeVisible();
+    const final = page.locator(".stat", { hasText: "Capital final" });
+    await expect(final).toContainText("497,75 USDT");
+    await expect(final).toContainText("-0,45 %");
+    await expect(page.locator(".stat", { hasText: "Operaciones cerradas" })).toContainText("6");
+    await expect(page.getByRole("img", { name: "Curva de capital" })).toBeVisible();
+    await expect(page.getByText(/DESCARTADA: fixture/)).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await shot(page, "simulacion-resultado", info.project.name);
+  });
+
   test("activar y desactivar una estrategia: solicitado → confirmado por el engine", async ({ page }) => {
     await page.goto("/estrategias/momentum");
     await page.getByRole("button", { name: "Activar estrategia" }).click();

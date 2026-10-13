@@ -125,15 +125,26 @@ async def seed_trading() -> None:
     eth = make_signal("ETHUSDT", "3000", "2985", "3100")
     await h.manager.submit_entry(eth, await h.decide(eth))
     async with db.session_scope() as s:
-        s.add(
-            m.BacktestRun(
-                strategy_id="momentum", strategy_version="1.0", symbols=["BTCUSDT"], interval="1m",
-                start=utcnow() - timedelta(days=30), end=utcnow() - timedelta(days=1), segment="test",
-                params={}, cost_model=CostModel().as_dict(), data_hash="e2efixture0000", status="DONE",
-                metrics={"net_pnl": -12.4, "trades": 41, "profit_factor": 0.83, "max_drawdown": 22.1},
-                notes="DESCARTADA: fixture de test E2E, sin ventaja tras costes",
-            )
+        run = m.BacktestRun(
+            strategy_id="momentum", strategy_version="1.0", symbols=["BTCUSDT"], interval="1m",
+            start=utcnow() - timedelta(days=30), end=utcnow() - timedelta(days=1), segment="test",
+            params={}, cost_model={**CostModel().as_dict(), "limits": {"reference_capital": "500"}},
+            data_hash="e2efixture0000", status="DONE",
+            metrics={"net_pnl": -12.4, "trades": 41, "profit_factor": 0.83, "max_drawdown": 22.1},
+            notes="DESCARTADA: fixture de test E2E, sin ventaja tras costes",
         )  # fmt: skip
+        s.add(run)
+        await s.flush()
+        t0 = utcnow() - timedelta(days=20)
+        for i, pnl in enumerate(["12.5", "-3.0", "-8.25", "4.0", "-1.5", "-6.0"]):
+            s.add(
+                m.BacktestTrade(
+                    run_id=run.id, symbol="BTCUSDT", entry_time=t0 + timedelta(hours=i),
+                    exit_time=t0 + timedelta(hours=i, minutes=20), entry_price=Decimal(80000),
+                    exit_price=Decimal(80100), quantity=Decimal("0.002"), fees=Decimal("0.4"),
+                    gross_pnl=Decimal(pnl) + Decimal("0.4"), net_pnl=Decimal(pnl), exit_reason="stop",
+                )
+            )  # fmt: skip
 
 
 async def publish_feed_status() -> None:

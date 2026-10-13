@@ -311,3 +311,50 @@ async def test_audit_listing_filters(admin_client: httpx.AsyncClient) -> None:
 async def _audit_rows() -> list[m.AuditLog]:
     async with db.session_scope() as s:
         return list((await s.execute(select(m.AuditLog))).scalars())
+
+
+async def test_backtest_detail_has_final_capital_curve_and_honest_summary(
+    admin_client: httpx.AsyncClient,
+) -> None:
+    from datetime import timedelta
+
+    async with db.session_scope() as s:
+        run = m.BacktestRun(
+            strategy_id="trend", strategy_version="1", symbols=["BTCUSDT"], interval="5m",
+            start=OLD, end=OLD + timedelta(days=30), segment="test", params={},
+            cost_model={"limits": {"reference_capital": "500"}}, data_hash="h", seed=0,
+            status="DONE", metrics={}, notes="DESCARTADA: x",
+        )  # fmt: skip
+        s.add(run)
+        await s.flush()
+        pnls = ["10", "-4", "-30", "5", "-1"]
+        for i, p in enumerate(pnls):
+            s.add(
+                m.BacktestTrade(
+                    run_id=run.id, symbol="BTCUSDT", entry_time=OLD + timedelta(hours=i),
+                    exit_time=OLD + timedelta(hours=i, minutes=30), entry_price=Decimal(100),
+                    exit_price=Decimal(101), quantity=Decimal(1), fees=Decimal("0.5"),
+                    gross_pnl=Decimal(p) + Decimal("0.5"), net_pnl=Decimal(p), exit_reason="stop",
+                )
+            )  # fmt: skip
+        # Operación sin cerrar: no cuenta para el capital final.
+        s.add(
+            m.BacktestTrade(
+                run_id=run.id, symbol="BTCUSDT", entry_time=OLD, exit_time=None,
+                entry_price=Decimal(100), exit_price=None, quantity=Decimal(1), fees=Decimal(0),
+                gross_pnl=None, net_pnl=None, exit_reason=None,
+            )
+        )  # fmt: skip
+        run_id = run.id
+    d = (await admin_client.get(f"/api/backtests/{run_id}")).json()
+    sm = d["summary"]
+    assert Decimal(sm["initial_capital"]) == 500
+    assert Decimal(sm["final_capital"]) == 480  # 500 + 10 - 4 - 30 + 5 - 1
+    assert Decimal(sm["net_pnl"]) == -20 and sm["closed_trades"] == 5
+    assert Decimal(sm["max_drawdown"]) == 34  # pico 510 → valle 476
+    assert sm["win_rate"] == 0.4
+    assert Decimal(sm["curve"][0]["equity"]) == 500
+    assert Decimal(sm["curve"][-1]["equity"]) == 480
+    assert "dinero ficticio" in d["disclaimer"]
+    lst = (await admin_client.get("/api/backtests")).json()["items"][0]
+    assert Decimal(lst["final_capital"]) == 480 and lst["closed_trades"] == 5

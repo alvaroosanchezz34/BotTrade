@@ -8,6 +8,7 @@ import { Home } from "../pages/Home";
 import { Markets } from "../pages/Markets";
 import { Operations } from "../pages/Operations";
 import { Settings } from "../pages/Settings";
+import { Simulation } from "../pages/Simulation";
 import { StrategiesPage, StrategyPage } from "../pages/Strategies";
 import { AuthGate } from "./auth";
 import { Shell } from "./Shell";
@@ -50,6 +51,7 @@ export function App({ client = makeQueryClient() }: { client?: QueryClient }) {
                 <Route path="operaciones" element={<Operations />} />
                 <Route path="estrategias" element={<StrategiesPage />} />
                 <Route path="estrategias/:id" element={<StrategyPage />} />
+                <Route path="simulaciones/:id" element={<Simulation />} />
                 <Route path="configuracion" element={<Settings />} />
                 <Route path="*" element={<div className="empty">Página no encontrada.</div>} />
               </Route>

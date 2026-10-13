@@ -1,15 +1,47 @@
 import { Link, useParams } from "react-router-dom";
-import { useStrategies, useStrategy } from "../api/queries";
+import { useBacktests, useStrategies, useStrategy } from "../api/queries";
 import type { BacktestBrief } from "../api/types";
 import { useAuth } from "../app/auth";
 import { Async, Banner, Card, Empty, Tag } from "../components/ui";
 import { StrategyToggle } from "../features/control";
 import { useTimeZone } from "../hooks/useTimeZone";
 import { ago, dateTime, duration, money, pct, price, ratio, signedMoney, tone } from "../services/format";
+import { fmtReturn } from "./Simulation";
 
 function verdictTag(v: string | null) {
   if (!v) return <Tag>Sin backtest</Tag>;
   return <Tag kind={v.startsWith("CANDIDATA") ? "warn" : "bad"}>{v}</Tag>;
+}
+
+function SimulationsList() {
+  const q = useBacktests();
+  return (
+    <Card title="Simulaciones históricas (dinero ficticio)">
+      <Async q={q}>
+        {(d) =>
+          d.items.length === 0 ? (
+            <Empty>Aún no hay simulaciones. Se generan con el comando de investigación (ver docs/backtesting.md).</Empty>
+          ) : (
+            <div className="list">
+              {d.items.map((b) => (
+                <Link key={b.id} to={`/simulaciones/${b.id}`} className="item" style={{ textDecoration: "none", color: "inherit" }}>
+                  <div className="row between">
+                    <b>{b.strategy_id} · {b.interval}</b>
+                    <b className={`mono ${tone(Number(b.final_capital) - Number(b.initial_capital))}`}>
+                      {money(b.initial_capital, 0, "")} → {money(b.final_capital, 2, "")}
+                    </b>
+                  </div>
+                  <div className="muted small">
+                    {fmtReturn(b.initial_capital, b.final_capital)} · {b.closed_trades} operaciones · {b.notes.split(":")[0] || "sin veredicto"}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )
+        }
+      </Async>
+    </Card>
+  );
 }
 
 export function StrategiesPage() {
@@ -19,6 +51,7 @@ export function StrategiesPage() {
       {(d) => (
         <div className="stack">
           <Banner kind="info">{d.disclaimer}</Banner>
+          <SimulationsList />
           {d.strategies.length === 0 ? (
             <Empty>El engine aún no ha registrado estrategias.</Empty>
           ) : (

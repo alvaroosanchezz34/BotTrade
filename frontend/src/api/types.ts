@@ -342,3 +342,59 @@ export interface Pulse {
   last_signal_at: string | null;
   commands: { id: string; command: string; status: string; result: string | null }[];
 }
+
+export interface BacktestListItem {
+  id: string;
+  created_at: string;
+  strategy_id: string;
+  strategy_version: string;
+  symbols: string[];
+  interval: string;
+  start: string;
+  end: string;
+  segment: string;
+  notes: string;
+  initial_capital: Dec;
+  final_capital: Dec;
+  closed_trades: number;
+}
+
+export interface BacktestDetail {
+  id: string;
+  created_at: string;
+  strategy_id: string;
+  strategy_version: string;
+  symbols: string[];
+  interval: string;
+  start: string;
+  end: string;
+  segment: string;
+  notes: string;
+  data_hash: string;
+  seed: number;
+  disclaimer: string;
+  summary: {
+    initial_capital: Dec;
+    final_capital: Dec;
+    net_pnl: Dec;
+    return_pct: Dec | null;
+    closed_trades: number;
+    win_rate: number | null;
+    max_drawdown: Dec;
+    max_drawdown_pct: Dec | null;
+    best_trade: Dec | null;
+    worst_trade: Dec | null;
+    curve: { at: string | null; equity: Dec }[];
+  };
+  trades: {
+    symbol: string;
+    entry_time: string;
+    exit_time: string | null;
+    entry_price: Dec;
+    exit_price: Dec | null;
+    quantity: Dec;
+    fees: Dec;
+    net_pnl: Dec | null;
+    exit_reason: string | null;
+  }[];
+}
