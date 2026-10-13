@@ -3,7 +3,7 @@
 _Última actualización: 2026-10-13. Rama `claude/peaceful-fermat-qo4tgr`._
 
 **El sistema opera exclusivamente en BACKTEST, PAPER y TESTNET. No existe modo de dinero real.**
-**Ninguna estrategia ha demostrado ventaja estadística** (no se han podido descargar datos; ver `docs/validation-report.md`).
+**Ninguna estrategia ha demostrado ventaja estadística: las 6 combinaciones probadas con 12 meses de datos reales quedaron DESCARTADAS** (ver `docs/validation-report.md`).
 
 ## Fases
 
@@ -12,12 +12,12 @@ _Última actualización: 2026-10-13. Rama `claude/peaceful-fermat-qo4tgr`._
 | 0 Diseño | ✅ | `docs/architecture.md`, `decisions.md`, `plan.md`; APIs de Binance contrastadas con la documentación oficial |
 | 1 Fundamentos | ✅ | config validada, BD + Alembic, auth, health, auditoría, logs con redacción |
 | 2 Datos de mercado | ✅ (sin datos reales en esta sesión) | validador, feed WS con reconexión/recuperación, archivos con SHA-256; tests con WS/REST simulados |
-| 3 Backtesting | ✅ motor y protocolo; ⚠️ **sin resultados** | motor sin look-ahead, costes, métricas, walk-forward; no se ejecutó con datos reales |
+| 3 Backtesting | ✅ | motor sin look-ahead, costes, métricas, walk-forward; **ejecutado con 12 meses reales de BTC/ETH** |
 | 4 Riesgo y órdenes | ✅ | máquina de estados, idempotencia, `UNKNOWN`, reconciliación, kill switch; tests de fallos |
 | 5 PAPER / TESTNET | ✅ PAPER (simulado); ⚠️ TESTNET **no probado contra el testnet real** | engine e2e, reinicios, comandos; adaptador probado con servidor simulado |
 | 6 Aplicación móvil | ✅ | PWA React/TS; 45 tests unitarios; 38 e2e (iPhone emulado + escritorio) contra API y engine reales; axe sin violaciones graves |
 | 7 Seguridad y despliegue | ✅ código y docs; ⚠️ imágenes Docker **sin construir** | tests de seguridad; compose validado; backup/restore probado |
-| 8 Validación prolongada | ❌ **no realizada** | requiere datos (red) y ≥ 8 semanas de paper |
+| 8 Validación prolongada | ⚠️ parte histórica **hecha** (todas descartadas); paper ≥ 8 semanas **no aplica** hasta que haya una candidata | `docs/validation-report.md` |
 
 ## Resultados de pruebas (última ejecución en este entorno)
 
@@ -28,7 +28,7 @@ _Última actualización: 2026-10-13. Rama `claude/peaceful-fermat-qo4tgr`._
 
 ## Limitaciones conocidas (honestas)
 
-1. **Sin datos de mercado reales procesados**: la política de red de la sesión bloqueó Binance. Backtests y paper en vivo pendientes.
+1. **Paper en vivo no ejecutado**: no tiene sentido sin una estrategia candidata. La validación histórica usó solo 12 meses y una rejilla de 8 combinaciones por estrategia.
 2. **Testnet**: geobloqueo (HTTP 451) y bloqueo de red; el adaptador está verificado contra la documentación oficial y un servidor simulado, no contra el servicio.
 3. **Docker/Caddy**: configuración validada, imágenes no construidas aquí.
 4. **iPhone real**: probado con Chromium emulando iPhone 13, no con WebKit/Safari.
@@ -41,11 +41,11 @@ _Última actualización: 2026-10-13. Rama `claude/peaceful-fermat-qo4tgr`._
 
 ## Siguiente paso exacto
 
-1. Dar acceso de red a `data.binance.vision` y `data-api.binance.vision` (o ejecutar en un VPS) y lanzar los dos comandos de `docs/validation-report.md`.
-2. Leer `docs/backtesting-results.md`: **descartar** lo que el informe descarte. Solo lo que sea `CANDIDATA` pasa a paper.
-3. Desplegar con `docs/deployment.md` (Tailscale), probar en el iPhone con `docs/testing.md`, y empezar el paper de ≥ 8 semanas.
-4. (Opcional) Probar TESTNET desde el VPS con cantidades mínimas siguiendo `docs/operations.md`.
-5. No activar nada con dinero real: requeriría una decisión separada y cambios explícitos de código.
+1. Leer `docs/validation-report.md` (resultado: nada pasa; trend 5m es un falso positivo por régimen alcista).
+2. Decidir: (a) detenerse aquí con una plataforma de investigación que ha descartado correctamente sus hipótesis, o
+   (b) investigar nuevas hipótesis (más años y activos, frecuencias menores) con la misma disciplina: nueva versión ⇒ revalidar.
+3. Solo si algo supera los criterios: desplegar (`docs/deployment.md`), probar en el iPhone (`docs/testing.md`) y paper ≥ 8 semanas.
+4. Dinero real: **no existe** y requeriría una decisión separada con cambios explícitos de código.
 
 ## Comandos de verificación
 
