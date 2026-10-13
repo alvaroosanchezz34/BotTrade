@@ -149,6 +149,51 @@ test.describe("panel (administrador)", () => {
     await expectNoHorizontalScroll(page);
   });
 
+  test("laboratorio: validar, simular en el servidor y leer un informe honesto", async ({ page }, info) => {
+    await page.goto("/estrategias");
+    await page.getByRole("link", { name: "Probar una idea" }).click();
+    await expect(page.getByRole("heading", { name: "Laboratorio" }).first()).toBeVisible();
+    await expect(page.getByText(/Cuantas más variantes pruebes/)).toBeVisible();
+
+    // Validación en el cliente: un valor fuera de rango bloquea el envío.
+    const lookback = page.getByLabel("lookback", { exact: true });
+    await lookback.fill("1");
+    await expect(page.getByText(/Debe ser al menos 2/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Simular con dinero ficticio" })).toBeDisabled();
+    await lookback.fill("30");
+    await expectNoHorizontalScroll(page);
+    await shot(page, "laboratorio-formulario", info.project.name);
+
+    await page.getByRole("button", { name: "Simular con dinero ficticio" }).click();
+    await expect(page).toHaveURL(/\/laboratorio\/[0-9a-f-]{36}$/);
+    // El servidor simula en segundo plano (worker): se pasa de «en cola/simulando» al informe.
+    await expect(page.getByRole("heading", { name: "Veredicto" })).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText(/Sin evidencia de ventaja|Prometedora|No concluyente/).first()).toBeVisible();
+    await expect(page.getByText("Muestra suficiente")).toBeVisible();
+    await expect(page.getByText("Supera a entradas aleatorias")).toBeVisible();
+    await expect(page.getByText(/Simulación histórica con dinero ficticio/).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Resultado final" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Estabilidad por periodos/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Comparaciones" })).toBeVisible();
+    await expect(page.getByText(/Tu variante nº 1/)).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await shot(page, "laboratorio-informe", info.project.name);
+
+    // Iterar: «Probar otra variante» conserva los parámetros y el contador de variantes sube.
+    await page.getByRole("button", { name: "Probar otra variante" }).click();
+    await expect(page.getByLabel("lookback", { exact: true })).toHaveValue("30");
+    await page.getByLabel("lookback", { exact: true }).fill("40");
+    await page.getByRole("button", { name: "Simular con dinero ficticio" }).click();
+    await expect(page.getByText(/Tu variante nº 2/)).toBeVisible({ timeout: 120_000 });
+
+    // El historial personal lista ambas y la simulación del laboratorio NO sale en los listados generales.
+    await page.goto("/laboratorio");
+    await expect(page.getByRole("heading", { name: "Tus simulaciones" })).toBeVisible();
+    await expect(page.getByText(/variante nº 2/)).toBeVisible();
+    await page.goto("/estrategias");
+    await expect(page.getByText(/momentum · 5m/)).toHaveCount(0);
+  });
+
   test("simulación histórica: resultado final con dinero ficticio, curva y veredicto", async ({ page }, info) => {
     await page.goto("/estrategias");
     const card = page.getByRole("heading", { name: /Simulaciones históricas/ });

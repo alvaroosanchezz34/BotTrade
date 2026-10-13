@@ -1,0 +1,80 @@
+# PRUEBAS EN LOCAL (tu ordenador). Sin dominio, sin HTTPS, dinero ficticio. NO es para un servidor público.
+#
+#   docker compose -f infra/docker-compose.local.yml up -d --build
+#   → abre http://localhost:8080
+#
+# Para verlo también desde el móvil en tu Wi-Fi:  WEB_BIND=0.0.0.0 docker compose -f infra/docker-compose.local.yml up -d
+# (solo en una red de confianza: el acceso está protegido por usuario y contraseña, pero va sin HTTPS).
+name: bottrade-local
+
+x-backend: &backend
+  build:
+    context: ..
+    dockerfile: infra/docker/backend.Dockerfile
+  environment:
+    BOTTRADE_ENVIRONMENT: development
+    BOTTRADE_TRADING_MODE: PAPER
+    BOTTRADE_DATABASE_URL: postgresql+asyncpg://bottrade:local-only-password@db:5432/bottrade
+    BOTTRADE_LOG_JSON: "false"
+    BOTTRADE_COOKIE_SECURE: "false"
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bottrade
+      POSTGRES_PASSWORD: local-only-password   # la BD no publica ningún puerto: solo la ven los otros contenedores
+      POSTGRES_DB: bottrade
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bottrade -d bottrade"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    <<: *backend
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    expose: ["8000"]
+
+  lab-worker:
+    <<: *backend
+    command: ["python", "-m", "app.cli", "lab-worker"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        CADDYFILE: infra/caddy/Caddyfile.local
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:80"
+    depends_on: [api]
+    restart: unless-stopped
+
+  # Herramientas puntuales (descarga de datos de mercado). Uso: docker compose -f … run --rm data <comando>
+  data:
+    <<: *backend
+    profiles: [tools]
+    restart: "no"
+    volumes:
+      - archive:/app/data
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:
+  archive:

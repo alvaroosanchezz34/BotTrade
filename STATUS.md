@@ -22,14 +22,17 @@ _Última actualización: 2026-10-13. Rama `claude/peaceful-fermat-qo4tgr`._
 ## Resultados de pruebas (última ejecución en este entorno)
 
 * Backend: `make check` → ruff ✔, mypy estricto ✔ (68 ficheros), **289 tests pasan**.
-* Frontend: `tsc` ✔, **47 tests pasan** (vitest).
-* E2E (Playwright, Chromium): **20 + 20 pasan** (proyecto iPhone 13 emulado y escritorio).
+* Frontend: `tsc` ✔, **60 tests pasan** (vitest).
+* E2E (Playwright, Chromium): **21 + 21 pasan** (proyecto iPhone 13 emulado y escritorio).
 * No ejecutados: tests con red real (`-m network`), Safari/iPhone real, Binance Testnet real, construcción de imágenes Docker.
 
 ## Novedades
 
 * Pantalla **Simulaciones históricas** (Estrategias → resultado final con capital inicial→final, curva y veredicto) y `GET /api/backtests` con capital final.
 * Guía de simulación desde el móvil (`docs/simulacion-desde-el-movil.md`) y notas de producto (`docs/producto.md`).
+
+* **Laboratorio de estrategias** (`docs/laboratorio.md`): el usuario elige plantilla y parámetros acotados, un worker simula y devuelve un informe honesto (9 pruebas, 3 tercios, azar, costes duros, aviso de comparaciones múltiples; veredicto PROMETEDORA / SIN EVIDENCIA / NO CONCLUYENTE). Privado por usuario, con cuotas.
+* Compose local para probar todo en un ordenador (`docs/probar-laboratorio.md`).
 
 ## Limitaciones conocidas (honestas)
 

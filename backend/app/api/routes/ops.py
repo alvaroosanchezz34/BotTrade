@@ -189,7 +189,12 @@ async def list_backtests(
     strategy: Annotated[str | None, Query(max_length=64, pattern=r"^[A-Za-z0-9_\-]+$")] = None,
     segment: Annotated[str | None, Query(max_length=16, pattern=r"^[A-Za-z0-9_\-]+$")] = None,
 ) -> dict[str, Any]:
-    stmt = select(m.BacktestRun).order_by(m.BacktestRun.created_at.desc(), m.BacktestRun.id)
+    # Las simulaciones del laboratorio son privadas de cada usuario: no salen en el listado general.
+    stmt = (
+        select(m.BacktestRun)
+        .where(m.BacktestRun.segment != "lab")
+        .order_by(m.BacktestRun.created_at.desc(), m.BacktestRun.id)
+    )
     if strategy:
         stmt = stmt.where(m.BacktestRun.strategy_id == strategy)
     if segment:
@@ -223,11 +228,17 @@ async def list_backtests(
 
 @router.get("/backtests/{run_id}")
 async def backtest_detail(
-    run_id: uuid.UUID, _: Auth, db: DB, settings: SettingsDep
+    run_id: uuid.UUID, auth: Auth, db: DB, settings: SettingsDep
 ) -> dict[str, Any]:
     r = await db.get(m.BacktestRun, run_id)
     if r is None:
         raise HTTPException(404, "Backtest no encontrado")
+    if r.segment == "lab":
+        owner = (
+            await db.execute(select(m.LabJob.user_id).where(m.LabJob.run_id == run_id))
+        ).scalar_one_or_none()
+        if owner != auth.user.id:  # no se distingue «no existe» de «es de otro usuario»
+            raise HTTPException(404, "Backtest no encontrado")
     closed = (
         await db.execute(
             select(m.BacktestTrade.exit_time, m.BacktestTrade.net_pnl)

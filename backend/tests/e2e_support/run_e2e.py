@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import Decimal
 
+import numpy as np
 import uvicorn
 from alembic import command
 from alembic.config import Config
@@ -39,6 +40,7 @@ from app.risk.engine import RiskEngine
 from app.risk.limits import RiskLimits
 from app.risk.sizing import CostModel
 from app.services.engine import Engine, EngineConfig
+from app.services.lab_worker import run_worker
 from tests.exec_helpers import RULES, Harness, make_signal
 from tests.factories import candle
 
@@ -93,12 +95,22 @@ async def seed_candles() -> None:
                 str(round(base + base * 0.002 * ((i % 40) - 20) / 20 + i * base * 1e-6, 2))
             )
             cs.append(candle(t, symbol=symbol, o=px, c=px + Decimal("3"), v="12"))
+        # 5m: paseo aleatorio de ~9 días (suficiente para el laboratorio, que exige ≥ 2000 velas).
+        rng = np.random.default_rng(7 if symbol == "BTCUSDT" else 8)
         five = []
-        for i in range(120):
-            t = (last_open - timedelta(minutes=5 * (119 - i))).replace(second=0)
-            t = t.replace(minute=t.minute - t.minute % 5)
-            px = Decimal(str(round(base + base * 0.003 * ((i % 24) - 12) / 12, 2)))
-            five.append(candle(t, symbol=symbol, interval="5m", o=px, c=px + Decimal("5"), v="60"))
+        px = float(base)
+        end5 = last_open.replace(second=0, microsecond=0)
+        end5 = end5.replace(minute=end5.minute - end5.minute % 5)
+        for i in range(2600):
+            t = end5 - timedelta(minutes=5 * (2599 - i))
+            o = px
+            px = px * float(np.exp(rng.normal(0, 0.0012)))
+            hi = max(o, px) * (1 + abs(float(rng.normal(0, 0.0006))))
+            lo = min(o, px) * (1 - abs(float(rng.normal(0, 0.0006))))
+            five.append(
+                candle(t, symbol=symbol, interval="5m", o=str(round(o, 2)), c=str(round(px, 2)),
+                       h=str(round(hi, 2)), l=str(round(lo, 2)), v="40")
+            )  # fmt: skip
         async with db.session_scope() as s:
             await store.save_candles(s, cs)
             await store.save_candles(s, five)
@@ -213,11 +225,12 @@ async def main() -> int:
     tasks = [
         asyncio.create_task(engine.run()),
         asyncio.create_task(tick_candles(stop)),
+        asyncio.create_task(run_worker(stop, poll_seconds=0.5, workers=1)),
         asyncio.create_task(server.serve()),
     ]
     print(f"E2E listo en http://127.0.0.1:{PORT}", flush=True)
     await tasks[-1]
-    stop.set()
+    stop.set()  # detiene también el worker del laboratorio
     engine.stop()
     await asyncio.gather(*tasks[:-1], return_exceptions=True)
     await db.dispose_engine()

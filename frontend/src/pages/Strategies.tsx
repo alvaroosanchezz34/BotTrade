@@ -51,6 +51,14 @@ export function StrategiesPage() {
       {(d) => (
         <div className="stack">
           <Banner kind="info">{d.disclaimer}</Banner>
+          <Card title="Laboratorio">
+            <div className="stack">
+              <div>Prueba tu propia idea con dinero ficticio y recibe un informe honesto: tres periodos, comparación con el azar y costes duros.</div>
+              <Link to="/laboratorio" className="btn primary block">
+                Probar una idea
+              </Link>
+            </div>
+          </Card>
           <SimulationsList />
           {d.strategies.length === 0 ? (
             <Empty>El engine aún no ha registrado estrategias.</Empty>

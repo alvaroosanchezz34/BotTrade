@@ -184,3 +184,5 @@ table.t th { color: var(--muted); font-weight: 600; width: 38%; }
 @media (min-width: 900px) { .dialog { bottom: auto; top: 50%; transform: translate(-50%, -50%); border-radius: 18px; } }
 .dialog h2 { margin: 0 0 6px; font-size: 1.15rem; }
 .login { max-width: 420px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 32px) 16px 32px; }
+a.btn { text-decoration: none; color: inherit; }
+a.btn.primary { color: var(--accent-contrast); }

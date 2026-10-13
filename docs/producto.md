@@ -30,6 +30,11 @@
 7. **Operación**: monitorización, backups probados fuera del servidor, soporte, entorno de staging.
 8. **Nunca** custodiar claves de exchange de terceros sin una revisión de seguridad seria: es el mayor riesgo del negocio.
 
+## Estado
+
+El **laboratorio de simulación** ya existe como funcionalidad (`docs/laboratorio.md`): plantillas acotadas, informe honesto, cola con
+cuotas y privacidad por usuario. Falta lo de los puntos 2, 3 (parcial), 4, 5 y 7 de arriba para ofrecerlo a terceros.
+
 ## Orden razonable
 
 1. Validar que alguien lo quiere (landing + lista de espera + 10 entrevistas), antes de construir el multiusuario.

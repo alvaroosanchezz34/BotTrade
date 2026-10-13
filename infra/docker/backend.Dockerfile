@@ -16,6 +16,9 @@ RUN pip install .
 COPY backend/alembic.ini ./
 COPY backend/migrations ./migrations
 
+# Caché de históricos descargados e informes: el usuario sin privilegios debe poder escribir.
+RUN mkdir -p /app/data /app/reports && chown -R bottrade:bottrade /app/data /app/reports
+
 USER bottrade
 EXPOSE 8000
 

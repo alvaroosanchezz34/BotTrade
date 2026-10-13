@@ -398,3 +398,79 @@ export interface BacktestDetail {
     exit_reason: string | null;
   }[];
 }
+
+export interface LabParamSpec {
+  name: string;
+  type: "integer" | "number";
+  default: number | null;
+  min: number | null;
+  min_exclusive: boolean;
+  max: number | null;
+  description: string;
+}
+
+export interface LabOptions {
+  strategies: { id: string; name: string; description: string; params: LabParamSpec[] }[];
+  symbols: string[];
+  intervals: ("1m" | "5m")[];
+  months: number[];
+  max_months: Record<string, number>;
+  cost_levels: Record<string, { taker_fee: string; slippage: string; spread: string }>;
+  data: Record<string, Record<string, { from: string; to: string; bars: number }>>;
+  limits: { active_jobs_per_user: number; jobs_per_hour: number; min_trades_for_verdict: number };
+  disclaimer: string;
+}
+
+export interface LabRequest {
+  strategy_id: string;
+  symbols: string[];
+  interval: "1m" | "5m";
+  months: number;
+  params: Record<string, number>;
+  cost_level: "normal" | "conservador";
+}
+
+export interface LabMetrics {
+  trades: number;
+  net_pnl: number;
+  fees: number;
+  win_rate: number | null;
+  profit_factor: number | null;
+  expectancy: number | null;
+  expectancy_ci95: [number, number] | null;
+  max_drawdown_pct: number | null;
+  return_pct: number | null;
+  final_equity: number | null;
+}
+
+export interface LabReport {
+  verdict: "PROMETEDORA" | "SIN EVIDENCIA DE VENTAJA" | "NO CONCLUYENTE";
+  checks: { name: string; passed: boolean; detail: string }[];
+  spec: { strategy_id: string; symbols: string[]; interval: string; start: string; end: string; params: Record<string, number>; cost_level: string };
+  effective_params: Record<string, unknown>;
+  main: LabMetrics;
+  thirds: { label: string; start: string; end: string; trades: number; net_pnl: number; profit_factor: number | null; return_pct: number | null }[];
+  stress: LabMetrics;
+  limited: LabMetrics;
+  random: { n: number; net_min: number | null; net_median: number | null; net_max: number | null };
+  buy_hold: { return_pct: number | null; max_drawdown_pct?: number | null };
+  variants_tried: number;
+  multiple_testing_note: string | null;
+  data: { hash: string; bars: number; missing_bars?: number };
+  caveats: string[];
+}
+
+export interface LabJobOut {
+  id: string;
+  status: "QUEUED" | "RUNNING" | "DONE" | "FAILED";
+  progress: string;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  spec: LabReport["spec"];
+  variants_tried: number | null;
+  run_id: string | null;
+  error: string | null;
+  verdict: LabReport["verdict"] | null;
+  report: LabReport | null;
+}

@@ -31,7 +31,7 @@ async def list_strategies(_: Auth, db: DB, settings: SettingsDep) -> dict[str, A
         last_bt = (
             await db.execute(
                 select(m.BacktestRun)
-                .where(m.BacktestRun.strategy_id == s.id)
+                .where(m.BacktestRun.strategy_id == s.id, m.BacktestRun.segment != "lab")
                 .order_by(m.BacktestRun.created_at.desc())
                 .limit(1)
             )
@@ -107,7 +107,7 @@ async def strategy_detail(
         (
             await db.execute(
                 select(m.BacktestRun)
-                .where(m.BacktestRun.strategy_id == strategy_id)
+                .where(m.BacktestRun.strategy_id == strategy_id, m.BacktestRun.segment != "lab")
                 .order_by(m.BacktestRun.created_at.desc())
                 .limit(20)
             )

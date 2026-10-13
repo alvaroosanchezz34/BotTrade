@@ -69,6 +69,15 @@ services:
       retries: 3
     stop_grace_period: 30s
 
+  # Simulaciones del laboratorio (CPU intensiva): proceso aparte para no afectar al panel ni al engine.
+  lab-worker:
+    <<: *backend
+    command: ["python", "-m", "app.cli", "lab-worker"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [internal]
+    stop_grace_period: 30s
+
   web:
     build:
       context: ..

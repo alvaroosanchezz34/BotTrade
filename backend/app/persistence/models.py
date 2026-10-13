@@ -495,3 +495,27 @@ class EngineHeartbeat(Base):
     pid: Mapped[int] = mapped_column(Integer)
     state: Mapped[dict[str, Any]] = mapped_column(default=dict)
     __table_args__ = (CheckConstraint(f"mode IN {MODES}", name="mode"),)
+
+
+class LabJob(Base):
+    """Petición del laboratorio de estrategias. La ejecuta el proceso ``lab-worker`` (no la API)."""
+
+    __tablename__ = "lab_jobs"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = _created()
+    started_at: Mapped[datetime | None]
+    finished_at: Mapped[datetime | None]
+    status: Mapped[str] = mapped_column(String(10), default="QUEUED")
+    spec: Mapped[dict[str, Any]]
+    progress: Mapped[str] = mapped_column(String(120), default="En cola")
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("backtest_runs.id", ondelete="SET NULL")
+    )
+    report: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (
+        CheckConstraint("status IN ('QUEUED','RUNNING','DONE','FAILED')", name="status"),
+        Index("ix_lab_jobs_queue", "status", "created_at"),
+        Index("ix_lab_jobs_user", "user_id", "created_at"),
+    )

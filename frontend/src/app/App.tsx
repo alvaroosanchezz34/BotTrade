@@ -5,6 +5,8 @@ import { ApiError } from "../api/client";
 import { LoadingBlock } from "../components/ui";
 import { RealtimeProvider } from "../hooks/realtime";
 import { Home } from "../pages/Home";
+import { Lab } from "../pages/Lab";
+import { LabJob } from "../pages/LabJob";
 import { Markets } from "../pages/Markets";
 import { Operations } from "../pages/Operations";
 import { Settings } from "../pages/Settings";
@@ -52,6 +54,8 @@ export function App({ client = makeQueryClient() }: { client?: QueryClient }) {
                 <Route path="estrategias" element={<StrategiesPage />} />
                 <Route path="estrategias/:id" element={<StrategyPage />} />
                 <Route path="simulaciones/:id" element={<Simulation />} />
+                <Route path="laboratorio" element={<Lab />} />
+                <Route path="laboratorio/:id" element={<LabJob />} />
                 <Route path="configuracion" element={<Settings />} />
                 <Route path="*" element={<div className="empty">Página no encontrada.</div>} />
               </Route>

@@ -36,6 +36,24 @@ async def _create_admin(username: str) -> int:
     return 0
 
 
+async def _lab_worker(settings: Any) -> int:
+    import signal
+
+    from app.services.lab_worker import run_worker
+
+    configure_logging(settings.log_level, json_output=settings.log_json)
+    db.init_engine(settings.database_url.get_secret_value())
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop.set)
+    try:
+        await run_worker(stop)
+    finally:
+        await db.dispose_engine()
+    return 0
+
+
 async def _check_engine(settings: Any) -> int:
     from app.monitoring.health import check_engine
 
@@ -215,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
     p_res.add_argument("--report", default="../docs/backtesting-results.md")
     p_res.add_argument("--report-dir", default="../reports")
 
+    sub.add_parser("lab-worker", help="Ejecuta en segundo plano las simulaciones del laboratorio")
     sub.add_parser(
         "check-engine", help="Sale con 0 si el engine tiene latido reciente (healthcheck)"
     )
@@ -224,6 +243,8 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     configure_logging(settings.log_level, json_output=False)
 
+    if args.cmd == "lab-worker":
+        return asyncio.run(_lab_worker(settings))
     if args.cmd == "check-engine":
         return asyncio.run(_check_engine(settings))
     if args.cmd == "engine":

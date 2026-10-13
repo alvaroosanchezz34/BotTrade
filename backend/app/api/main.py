@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, control, dashboard, health, ops, strategies, trading, ws
+from app.api.routes import auth, control, dashboard, health, lab, ops, strategies, trading, ws
 from app.core.config import Environment, Settings, get_settings
 from app.core.logging import configure_logging
 from app.persistence import db
@@ -79,7 +79,7 @@ def create_app(settings: Settings | None = None, *, manage_db: bool = True) -> F
 
     app.include_router(health.router)
     app.include_router(auth.router)
-    for r in (dashboard, trading, strategies, ops, control, ws):
+    for r in (dashboard, trading, strategies, ops, control, lab, ws):
         app.include_router(r.router)
     return app
 

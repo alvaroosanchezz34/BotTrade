@@ -9,6 +9,9 @@ import type {
   Candles,
   Command,
   CommandAccepted,
+  LabJobOut,
+  LabOptions,
+  LabRequest,
   MarketRow,
   Me,
   Order,
@@ -215,5 +218,35 @@ export function useBacktest(id: string) {
   return useQuery({
     queryKey: ["backtests", id],
     queryFn: () => api<BacktestDetail>(`/api/backtests/${id}`),
+  });
+}
+
+export function useLabOptions() {
+  return useQuery({ queryKey: ["lab", "options"], queryFn: () => api<LabOptions>("/api/lab/options"), staleTime: 60_000 });
+}
+
+export function useLabJobs() {
+  return useQuery({
+    queryKey: ["lab", "jobs"],
+    queryFn: () => api<Page<LabJobOut>>("/api/lab/jobs?limit=20"),
+    refetchInterval: (q) => (q.state.data?.items.some((j) => j.status === "QUEUED" || j.status === "RUNNING") ? 3000 : false),
+  });
+}
+
+/** Sondeo corto mientras la simulación está en cola o en ejecución; se detiene al terminar. */
+export function useLabJob(id: string) {
+  return useQuery({
+    queryKey: ["lab", "jobs", id],
+    queryFn: () => api<LabJobOut>(`/api/lab/jobs/${id}`),
+    refetchInterval: (q) => (q.state.data && (q.state.data.status === "DONE" || q.state.data.status === "FAILED") ? false : 2000),
+  });
+}
+
+export function useCreateLabJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: LabRequest) =>
+      api<{ job_id: string; status: string; variants_tried: number }>("/api/lab/jobs", { method: "POST", body: b }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lab", "jobs"] }),
   });
 }
