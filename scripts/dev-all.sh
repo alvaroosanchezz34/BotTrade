@@ -53,14 +53,25 @@ START="$(date -u -d "${BT_MONTHS:-6} months ago" +%Y-%m-01 2>/dev/null || date -
 ( cd backend && .venv/bin/python -m app.cli download-history --symbols BTCUSDT,ETHUSDT --intervals 5m --start "$START" 2>&1 | tail -4 )
 
 say "6/7 Interfaz (compilando)"
-( cd frontend && npm ci --no-audit --no-fund --loglevel=error && npm run build >/dev/null )
+(
+  cd frontend
+  # Solo se reinstalan las dependencias si cambió package-lock.json (más rápido y evita borrar node_modules en vano).
+  LOCK="$(sha256sum package-lock.json 2>/dev/null | cut -d' ' -f1 || shasum -a 256 package-lock.json | cut -d' ' -f1)"
+  if [ ! -f node_modules/.bt-lock ] || [ "$(cat node_modules/.bt-lock)" != "$LOCK" ]; then
+    npm ci --no-audit --no-fund --loglevel=error || { rm -rf node_modules && npm ci --no-audit --no-fund --loglevel=error; }
+    echo "$LOCK" > node_modules/.bt-lock
+  fi
+  npm run build >/dev/null
+)
 
 say "7/7 Arrancando"
 bash "$ROOT/scripts/dev-stop.sh" >/dev/null 2>&1 || true
 # Cada proceso se lanza desacoplado de esta terminal (sin heredar su salida) y su PID queda guardado.
 start() { # nombre carpeta comando...
   local name="$1" dir="$2"; shift 2
-  ( cd "$dir" && exec nohup "$@" >"$RUN/$name.log" 2>&1 </dev/null ) &
+  # setsid: cada servicio es su propio grupo de procesos, para poder pararlo entero (npm lanza procesos hijos).
+  local launcher="nohup"; command -v setsid >/dev/null 2>&1 && launcher="setsid nohup"
+  ( cd "$dir" && exec $launcher "$@" >"$RUN/$name.log" 2>&1 </dev/null ) &
   echo $! >"$RUN/$name.pid"
 }
 start api backend .venv/bin/uvicorn app.api.main:build --factory --port 8000

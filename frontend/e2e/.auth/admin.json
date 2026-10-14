@@ -2,20 +2,20 @@
   "cookies": [
     {
       "name": "bt_session",
-      "value": "FxnCf4lzfWIUvmRPc5S5dr2L49LAqXZw7fECajE7s6I",
+      "value": "deYkaUieJgrVrRhoNU87ewV3e4ntwNhDFSWjVs1VEps",
       "domain": "127.0.0.1",
       "path": "/",
-      "expires": 1791973743.242,
+      "expires": 1792034681.933,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Strict"
     },
     {
       "name": "bt_csrf",
-      "value": "R22Q39_fP7xiNly8Ymt5DaXEUKFfLq4U6MqbiPHznOM",
+      "value": "Er5w1_NWMi0-ymujcCoRcyugB_UHlmqEejDwgcJ-vA8",
       "domain": "127.0.0.1",
       "path": "/",
-      "expires": 1791973743.243,
+      "expires": 1792034681.933,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Strict"
