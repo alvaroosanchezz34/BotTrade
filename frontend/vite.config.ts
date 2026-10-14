@@ -14,7 +14,8 @@ const proxy = {
 export default defineConfig({
   plugins: [react()],
   server: { host: "127.0.0.1", port: 5173, proxy },
-  preview: { host: "127.0.0.1", port: 4173, proxy },
+  // En Codespaces el navegador entra por un dominio de GitHub: se permite solo si se pide expresamente.
+  preview: { host: "127.0.0.1", port: 4173, proxy, allowedHosts: process.env.BOTTRADE_ALLOW_ANY_HOST === "1" ? true : undefined },
   build: { target: "es2022", sourcemap: false, chunkSizeWarningLimit: 700 },
   test: {
     environment: "jsdom",

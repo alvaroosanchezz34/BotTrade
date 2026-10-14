@@ -10,13 +10,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import signal
 from datetime import timedelta
 from decimal import Decimal
 
 from app.core.config import Settings, TradingMode
 from app.core.domain import InstrumentRules
 from app.core.money import bps
+from app.core.signals import install_stop_handlers
 from app.execution.adapter import ExecutionAdapter
 from app.execution.order_manager import OrderManager
 from app.execution.simulated import SimulatedExecution
@@ -128,8 +128,7 @@ async def run_engine(settings: Settings) -> int:
             engine.stop()
             feed.stop()
 
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, shutdown)
+        install_stop_handlers(loop, shutdown)
         log.info("engine en marcha", extra={"mode": mode.value, "symbols": settings.symbols})
         feed_task = asyncio.create_task(feed.run(), name="feed")
         engine_task = asyncio.create_task(engine.run(), name="engine-loops")

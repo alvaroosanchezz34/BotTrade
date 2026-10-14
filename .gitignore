@@ -32,3 +32,6 @@ frontend/dev-dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Procesos de desarrollo (scripts/dev-all.sh)
+.run/

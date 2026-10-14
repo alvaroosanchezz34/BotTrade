@@ -1,5 +1,7 @@
 # Probar el laboratorio (y la app) en tu ordenador
 
+> **¿Docker no te arranca?** Usa `docs/probar-sin-docker.md` (GitHub Codespaces: sin instalar nada, o Windows nativo).
+
 Todo con **dinero ficticio**, en tu máquina, sin servidores ni dominios. Tiempo: ~20–30 min la primera vez
 (la mayoría es esperar a que se construya e instale).
 

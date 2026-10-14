@@ -5,10 +5,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -18,11 +21,17 @@ from app.persistence import db
 async def _create_admin(username: str) -> int:
     from app.auth.service import create_user
 
-    password = getpass.getpass("Contraseña (mín. 12 caracteres): ")
-    if password != getpass.getpass("Repite la contraseña: "):
-        print("Las contraseñas no coinciden", file=sys.stderr)
-        return 1
     settings = get_settings()
+    scripted = os.environ.get("BOTTRADE_ADMIN_PASSWORD")
+    if scripted and settings.environment.value != "production":
+        password = (
+            scripted  # preparación automatizada en desarrollo; en producción siempre interactivo
+        )
+    else:
+        password = getpass.getpass("Contraseña (mín. 12 caracteres): ")
+        if password != getpass.getpass("Repite la contraseña: "):
+            print("Las contraseñas no coinciden", file=sys.stderr)
+            return 1
     db.init_engine(settings.database_url.get_secret_value())
     try:
         async with db.session_scope() as s:
@@ -30,6 +39,11 @@ async def _create_admin(username: str) -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    except IntegrityError:
+        print(
+            f"El usuario '{username}' ya existe: se conserva (elige otro nombre si quieres crear uno nuevo)."
+        )
+        return 0
     finally:
         await db.dispose_engine()
     print(f"Usuario administrador '{username}' creado")
@@ -37,16 +51,13 @@ async def _create_admin(username: str) -> int:
 
 
 async def _lab_worker(settings: Any) -> int:
-    import signal
-
+    from app.core.signals import install_stop_handlers
     from app.services.lab_worker import run_worker
 
     configure_logging(settings.log_level, json_output=settings.log_json)
     db.init_engine(settings.database_url.get_secret_value())
     stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop.set)
+    install_stop_handlers(asyncio.get_running_loop(), stop.set)
     try:
         await run_worker(stop)
     finally:

@@ -193,3 +193,22 @@ def test_verdict_requires_every_check() -> None:
     assert v == "SIN EVIDENCIA DE VENTAJA"
     v, _ = lab.lab_verdict(good, thirds, stress, limited, [100.0] * 10)  # el azar lo supera
     assert v == "SIN EVIDENCIA DE VENTAJA"
+
+
+def test_run_jobs_falls_back_to_serial_without_fork(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Windows no tiene «fork»: debe simular igualmente, en serie, con el mismo resultado."""
+    import multiprocessing as mp
+
+    from app.backtesting import research as rs
+
+    frame = random_walk(3000, seed=21)
+    spec = spec_for(frame)
+    serial, _ = lab.run_lab(spec, {"BTCUSDT": frame}, RULES, workers=1)
+    monkeypatch.setattr(mp, "get_all_start_methods", lambda: ["spawn"])
+    monkeypatch.setattr(
+        rs.mp,
+        "get_context",
+        lambda *_: (_ for _ in ()).throw(AssertionError("no debe usar procesos")),
+    )
+    no_fork, _ = lab.run_lab(spec, {"BTCUSDT": frame}, RULES, workers=4)
+    assert no_fork["main"] == serial["main"]

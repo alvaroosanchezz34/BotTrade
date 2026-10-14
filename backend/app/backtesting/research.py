@@ -139,7 +139,8 @@ def run_jobs(
     if not jobs:
         return []
     workers = workers or max(1, min(len(jobs), (os.cpu_count() or 2) - 1))
-    if workers == 1:
+    # Sin «fork» (Windows) los procesos hijos no heredan _FRAMES: se ejecuta en serie (más lento, correcto).
+    if workers == 1 or "fork" not in mp.get_all_start_methods():
         return [_run_job(j) for j in jobs]
     ctx = mp.get_context("fork")  # los workers heredan _FRAMES sin copiarlos por pickle
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
